@@ -388,6 +388,10 @@ void decodeInput(){
 			//memset(rxBuffer, 0, sizeof(rxBuffer));
 			return;
 		}
+		else {
+			send_BAD_CRC_ACK();
+			return;
+		}
 
 
 	}
@@ -583,7 +587,7 @@ while(!(input_port->IDR & input_pin)){ // wait for rx to go high
 
 
 while((input_port->IDR & input_pin)){   // wait for it go go low
-	if(TIM2->CNT > 250 && messagereceived){
+	if(TIM2->CNT > 3000 && messagereceived){
 		return;
 	}
 }
@@ -645,7 +649,7 @@ void sendString(uint8_t *data, int len){
 
 	for(int i = 0; i < len; i++){
 		serialwriteChar(data[i]);
-		delayMicroseconds(BITTIME);
+		delayMicroseconds(BITTIME * 2);
 
 	}
 }
@@ -658,29 +662,28 @@ void recieveBuffer(){
 	messagereceived = 0;
 	memset(rxBuffer, 0, sizeof(rxBuffer));
 	//TIM2->CNT = 0;
-	for(int i = 0; i < sizeof(rxBuffer); i++){
-	serialreadChar();
-	if(incoming_payload_no_command){
-		if(count == payload_buffer_size+2){
-
+	for(int i = 0; i < sizeof(rxBuffer); i++)
+	{
+		serialreadChar();
+		if(TIM2->CNT > 3000){
+			count = 0;
 			break;
 		}
-		rxBuffer[i] = rxbyte;
-		count++;
-	}else{
-		if(TIM2->CNT > 250){
-		count = 0;
-		break;
-	    }else{
-		rxBuffer[i] = rxbyte;
-		if(i == 257){
-			invalid_command+=20;       // needs one hundred to trigger a jump but will be reset on next set address commmand
-
+		if(incoming_payload_no_command) {
+			rxBuffer[i] = rxbyte;
+			count++;
+			if(count == payload_buffer_size+2){
+				break;
+			}
+		}
+		else {
+			rxBuffer[i] = rxbyte;
+			if(i == 257){
+				invalid_command+=20;       // needs one hundred to trigger a jump but will be reset on next set address commmand
+			}
 		}
 	}
-	}
-	}
-		decodeInput();
+	decodeInput();
 }
 
 void update_EEPROM(){
