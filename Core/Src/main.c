@@ -3,7 +3,6 @@
 #include <string.h>
 #include "bootloader.h"
 
-
 typedef void (*pFunction)(void);
 
 //#define SKIP_SIGNAL_CHECK // for slot car esc.
@@ -12,37 +11,43 @@ typedef void (*pFunction)(void);
 //#define ALLOW_FOUR_WAY_COMMANDS
 #define SIXTY_FOUR_KB_MEMORY
 
-#define APPLICATION_ADDRESS     (uint32_t)0x08001000               // 4k
+#define APPLICATION_ADDRESS      (uint32_t)0x08001000               // 4k
 
 #ifdef SIXTY_FOUR_KB_MEMORY
 #define EEPROM_START_ADD         (uint32_t)0x0800F800
-#define FLASH_END_ADD           (uint32_t)0x0800FFFF
+#define FLASH_END_ADD            (uint32_t)0x0800FFFF
 #else
 #define EEPROM_START_ADD         (uint32_t)0x0801F800
-#define FLASH_END_ADD           (uint32_t)0x0801FFFF
+#define FLASH_END_ADD            (uint32_t)0x0801FFFF
 #endif
 
-#define CMD_RUN             0x00
-#define CMD_PROG_FLASH      0x01
-#define CMD_ERASE_FLASH     0x02
-#define CMD_READ_FLASH_SIL  0x03
-#define CMD_VERIFY_FLASH    0x03
-#define CMD_VERIFY_FLASH_ARM 0x04
-#define CMD_READ_EEPROM     0x04
-#define CMD_PROG_EEPROM     0x05
-#define CMD_READ_SRAM       0x06
-#define CMD_READ_FLASH_ATM  0x07
-#define CMD_KEEP_ALIVE      0xFD
-#define CMD_SET_ADDRESS     0xFF
-#define CMD_SET_BUFFER      0xFE
+#define CMD_RUN                 0x00
+#define CMD_PROG_FLASH          0x01
+#define CMD_ERASE_FLASH         0x02
+#define CMD_READ_FLASH_SIL      0x03
+#define CMD_VERIFY_FLASH        0x03
+#define CMD_VERIFY_FLASH_ARM    0x04
+#define CMD_READ_EEPROM         0x04
+#define CMD_PROG_EEPROM         0x05
+#define CMD_READ_SRAM           0x06
+#define CMD_READ_FLASH_ATM      0x07
+#define CMD_KEEP_ALIVE          0xFD
+#define CMD_SET_ADDRESS         0xFF
+#define CMD_SET_BUFFER          0xFE
+
+#ifdef USE_PA2
+#define input_pin         LL_GPIO_PIN_2
+#define input_port        GPIOA
+#define PIN_NUMBER        2
+#define PORT_LETTER       0
+#endif
 
 #ifdef USE_PB4
-#define input_pin       LL_GPIO_PIN_4
+#define input_pin         LL_GPIO_PIN_4
 #define input_port        GPIOB
 #define PIN_NUMBER        4
 #define PORT_LETTER       1
 #endif
-
 
 char flash_error = 0;
 uint8_t receviedByte;
@@ -56,18 +61,13 @@ char eeprom_req = 0;
 int received;
 uint8_t pin_code = PORT_LETTER << 4 | PIN_NUMBER;
 
-
+uint8_t __attribute__ ((section(".bootloader_info"))) bootloader_version = BOOTLOADER_VERSION;
 
 #ifdef SIXTY_FOUR_KB_MEMORY
 uint8_t deviceInfo[9] = {0x34,0x37,0x31,0x64,0x35,0x06,0x06,0x01, 0x30};  // 64 k identifier 06 35
 #else
 uint8_t deviceInfo[9] = {0x34,0x37,0x31,0x64,0x2B,0x06,0x06,0x01, 0x30};      // stm32 128k device info 06 2b
 #endif
-
-
-//uint8_t deviceInfo[9] = {0x34,0x37,0x31,0x64,0xf3,0x90,0x06,0x01, 0x30};       // silabs device id
-//uint8_t deviceInfo[9] = {0x34,0x37,0x31,0x64,0xe8,0xb2,0x06,0x01, 0x30};     // blheli_s identifier
-
 
 size_t str_len;
 char connected = 0;
@@ -106,19 +106,16 @@ void sendString(uint8_t data[], int len);
 void recieveBuffer();
 
 #define BAUDRATE              19200
-#define BITTIME          1000000/BAUDRATE
-#define HALFBITTIME       500000/BAUDRATE
-
-
+#define BITTIME               1000000/BAUDRATE
+#define HALFBITTIME           500000/BAUDRATE
 
 void delayMicroseconds(uint32_t micros){
 	TIM2->CNT = 0;
 	while (TIM2->CNT < micros){
-
 	}
 }
 
-void jump(){
+void jump() {
 	__disable_irq();
 	JumpAddress = *(__IO uint32_t*) (APPLICATION_ADDRESS + 4);
 	uint8_t value = *(uint8_t*)(EEPROM_START_ADD);
@@ -129,45 +126,39 @@ void jump(){
 		return;
 	}
 #endif
-//	SCB->VTOR = 0x08001000;
-    JumpToApplication = (pFunction) JumpAddress;
-    __set_MSP(*(__IO uint32_t*) APPLICATION_ADDRESS);
-   JumpToApplication();
+	//	SCB->VTOR = 0x08001000;
+	JumpToApplication = (pFunction) JumpAddress;
+	__set_MSP(*(__IO uint32_t*) APPLICATION_ADDRESS);
+	JumpToApplication();
 }
 
-
-
-void makeCrc(uint8_t* pBuff, uint16_t length){
+void makeCrc(uint8_t* pBuff, uint16_t length) {
 	static uint8_16_u CRC_16;
-		CRC_16.word=0;
-
-		for(int i = 0; i < length; i++) {
-
-
-		     uint8_t xb = pBuff[i];
-		     for (uint8_t j = 0; j < 8; j++)
-		     {
-		         if (((xb & 0x01) ^ (CRC_16.word & 0x0001)) !=0 ) {
-		             CRC_16.word = CRC_16.word >> 1;
-		             CRC_16.word = CRC_16.word ^ 0xA001;
-		         } else {
-		             CRC_16.word = CRC_16.word >> 1;
-		         }
-		         xb = xb >> 1;
-		     }
-		 }
-		calculated_crc_low_byte = CRC_16.bytes[0];
-		calculated_crc_high_byte = CRC_16.bytes[1];
-
+	CRC_16.word=0;
+	for(int i = 0; i < length; i++) {
+		uint8_t xb = pBuff[i];
+		for (uint8_t j = 0; j < 8; j++)
+		{
+			if (((xb & 0x01) ^ (CRC_16.word & 0x0001)) !=0 ) {
+				CRC_16.word = CRC_16.word >> 1;
+				CRC_16.word = CRC_16.word ^ 0xA001;
+			} else {
+				CRC_16.word = CRC_16.word >> 1;
+			}
+			xb = xb >> 1;
+		}
+	}
+	calculated_crc_low_byte  = CRC_16.bytes[0];
+	calculated_crc_high_byte = CRC_16.bytes[1];
 }
 
 char checkCrc(uint8_t* pBuff, uint16_t length){
 
-		char received_crc_low_byte2 = pBuff[length];          // one higher than len in buffer
+		char received_crc_low_byte2  = pBuff[length];          // one higher than len in buffer
 		char received_crc_high_byte2 = pBuff[length+1];
 		makeCrc(pBuff,length);
 
-		if((calculated_crc_low_byte==received_crc_low_byte2)   && (calculated_crc_high_byte==received_crc_high_byte2)){
+		if ((calculated_crc_low_byte==received_crc_low_byte2) && (calculated_crc_high_byte==received_crc_high_byte2)) {
 			return 1;
 		}else{
 			return 0;
@@ -175,18 +166,15 @@ char checkCrc(uint8_t* pBuff, uint16_t length){
 }
 
 
-void setReceive(){
-//LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_2, LL_GPIO_MODE_INPUT);
-//memset(rxBuffer, 0, sizeof(rxBuffer));
+void setReceive() {
+	//LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_2, LL_GPIO_MODE_INPUT);
+	//memset(rxBuffer, 0, sizeof(rxBuffer));
 	MX_GPIO_INPUT_INIT();
-received = 0;
-
+	received = 0;
 }
 
-void setTransmit(){
-LL_GPIO_SetPinMode(input_port, input_pin, LL_GPIO_MODE_OUTPUT);       // set as reciever // clear bits and set receive bits..
-
-
+void setTransmit() {
+	LL_GPIO_SetPinMode(input_port, input_pin, LL_GPIO_MODE_OUTPUT);       // set as reciever // clear bits and set receive bits..
 }
 
 
@@ -213,160 +201,6 @@ void sendDeviceInfo(){
 	sendString(deviceInfo,9);
 	setReceive();
 }
-
-#ifdef ALLOW_FOUR_WAY_COMMANDS
-uint16_t makeFourWayCRC(uint8_t *crcdata, int length){
-    uint16_t crc  =0;
-    for(int i = 0; i < length; i++) {
-        crc = crc ^ (crcdata[i] << 8);
-        for (int i = 0; i < 8; ++i) {
-            if (crc & 0x8000){
-                crc = (crc << 1) ^ 0x1021;
-            }
-            else{
-                crc = crc << 1;
-            }
-        }
-        crc = crc & 0xffff;
-    }
-    return crc;
-}
-
-
-uint8_t checkFourWayCRC(uint16_t buffer_length){
-    uint16_t fourcrc  =0;
-    fourcrc = makeFourWayCRC((uint8_t*)rxBuffer, buffer_length-2);
-
-	char fourWayCrcHighByte = (fourcrc >> 8) & 0xff;
-    char fourWayCrcLowByte = fourcrc & 0xff;
-
-    if((fourWayCrcHighByte == rxBuffer[buffer_length-2]) &&(fourWayCrcLowByte == rxBuffer[buffer_length-1])) {
-        return(1);
-    }else{
-        return(0);
-    }
-}
-
-
-void parseFourWayMessage(){
-
-	uint8_t fourwayCommand = rxBuffer[1];
-
-	switch(fourwayCommand){
-
-
-
-		case 0x37:             // init flash
-			if(checkFourWayCRC(8) == 1){
-				payLoadBuffer[0] = 0x2e;
-				payLoadBuffer[1] = 0x37;
-				payLoadBuffer[2] = 0x00;
-				payLoadBuffer[3] = 0x00;
-				payLoadBuffer[4] = 0x03;
-				payLoadBuffer[5] = 0x06;
-				payLoadBuffer[6] = 0x2b;
-				payLoadBuffer[7] = 0x64;
-				payLoadBuffer[8] = 0x01;
-				payLoadBuffer[9] = 0x00;
-
-
-				uint16_t fullCrc  = makeFourWayCRC((uint8_t*)payLoadBuffer,10);
-
-				payLoadBuffer[10] = (fullCrc >> 8) & 0xff;
-				payLoadBuffer[11] =  fullCrc & 0xff;
-
-				setTransmit();
-				sendString(payLoadBuffer,12);
-				setReceive();
-			}else{
-				return;
-			}
-
-		break;
-		case 0x3A:             // read memory
-			if(checkFourWayCRC(8) == 1){
-				payLoadBuffer[0] = 0x2e;
-				payLoadBuffer[1] = 0x3A;
-				payLoadBuffer[2] = rxBuffer[2];
-				payLoadBuffer[3] = rxBuffer[3];
-				payLoadBuffer[4] = rxBuffer[5];
-
-
-
-				base_address =  (rxBuffer[2] << 8 | rxBuffer[3]) << 2;
-				address = 0x08000000 + base_address;
-
-				uint16_t out_buffer_size = rxBuffer[5];//
-
-
-				if(out_buffer_size == 0){
-					out_buffer_size = 256;
-				}
-
-				for (int i = 0; i < out_buffer_size ; i ++){
-					payLoadBuffer[i+5] = *(uint8_t*)(address + i);
-				}
-
-				payLoadBuffer[out_buffer_size+6] = 0x00;
-				uint16_t fullCrc  = makeFourWayCRC((uint8_t*)payLoadBuffer,out_buffer_size+6);
-					payLoadBuffer[out_buffer_size+6] = (fullCrc >> 8) & 0xff;
-					payLoadBuffer[out_buffer_size + 7] =  fullCrc & 0xff;
-					setTransmit();
-		            sendString(payLoadBuffer, out_buffer_size+8);
-
-					setReceive();
-
-
-			}else{
-				return;
-			}
-		break;                 // write memory
-		case 0x3B:
-
-			payload_buffer_size = rxBuffer[4];
-
-
-
-			if(payload_buffer_size == 0){
-				payload_buffer_size = 256;
-		     }
-
-			if(checkFourWayCRC(payload_buffer_size+7) == 1){
-				base_address =  (rxBuffer[2] << 8 | rxBuffer[3]) << 2;
-				address = 0x08000000 + base_address;
-
-				uint8_t read_data[payload_buffer_size];
-				for(int i = 0 ; i < payload_buffer_size; i++){
-				read_data[i] = rxBuffer[i+5];
-				}
-
-				save_flash_nolib((uint8_t*)read_data, payload_buffer_size,address);
-
-				payLoadBuffer[0] = 0x2e;
-				payLoadBuffer[1] = 0x3B;
-				payLoadBuffer[2] = rxBuffer[2];
-				payLoadBuffer[3] = rxBuffer[3];
-				payLoadBuffer[4] = 0x01;
-				payLoadBuffer[5] = 0x00;
-				payLoadBuffer[6] = 0x00;
-				uint16_t fullCrc  = makeFourWayCRC((uint8_t*)payLoadBuffer,7);
-				payLoadBuffer[7] = (fullCrc >> 8) & 0xff;
-				payLoadBuffer[8] =  fullCrc & 0xff;
-				setTransmit();
-	            sendString(payLoadBuffer, 9);
-
-				setReceive();
-			}else{
-				return;
-			}
-		break;
-
-	}
-}
-
-
-#endif
-
 
 void decodeInput(){
 
@@ -565,9 +399,7 @@ eeprom_req = 1;
 
 void serialreadChar()
 {
-rxbyte=0;
-
-//if (messagereceived == 0){
+	rxbyte=0;
 
 while(!(input_port->IDR & input_pin)){ // wait for rx to go high
 	if(TIM2->CNT > 200000){
@@ -604,9 +436,6 @@ receviedByte = rxbyte;
 
 }
 
-
-
-
 void serialwriteChar(char data)
 {
 input_port->BRR = input_pin;; //initiate start bit
@@ -625,25 +454,13 @@ while (bits_to_read < 8) {
 delayMicroseconds(BITTIME);
 input_port->BSRR = input_pin; //write the stop bit
 
-// if more than one byte a delay is needed after stop bit,
-//if its the only one no delay, the sendstring function adds delay after each bit
-
-//if(cmd == 255 || cmd == 254 || cmd == 1  || incoming_payload_no_command){
-//
-//}else{
-//	delayMicroseconds(BITTIME);
-//}
-
-
 }
 
 
-void sendString(uint8_t *data, int len){
-
+void sendString(uint8_t *data, int len) {
 	for(int i = 0; i < len; i++){
 		serialwriteChar(data[i]);
 		delayMicroseconds(BITTIME);
-
 	}
 }
 
@@ -680,57 +497,54 @@ void recieveBuffer(){
 		decodeInput();
 }
 
-void update_EEPROM(){
-read_flash_bin(rxBuffer , EEPROM_START_ADD , 48);
-if(BOOTLOADER_VERSION != rxBuffer[2]){
-	if (rxBuffer[2] == 0xFF || rxBuffer[2] == 0x00){
-		return;
+void update_EEPROM() {
+	read_flash_bin(rxBuffer , EEPROM_START_ADD , 48);
+	if(BOOTLOADER_VERSION != rxBuffer[2]){
+		if (rxBuffer[2] == 0xFF || rxBuffer[2] == 0x00){
+			return;
+		}
+		rxBuffer[2] = BOOTLOADER_VERSION;
+		save_flash_nolib(rxBuffer, 48, EEPROM_START_ADD);
 	}
-	rxBuffer[2] = BOOTLOADER_VERSION;
-save_flash_nolib(rxBuffer, 48, EEPROM_START_ADD);
-}
 }
 
 void checkForSignal(){
-	  uint16_t low_pin_count = 0;
-	  LL_GPIO_SetPinPull(input_port, input_pin, LL_GPIO_PULL_DOWN);
-	  delayMicroseconds(500);
+	uint16_t low_pin_count = 0;
+	LL_GPIO_SetPinPull(input_port, input_pin, LL_GPIO_PULL_DOWN);
+	delayMicroseconds(500);
 
-	  for(int i = 0 ; i < 500; i ++){
-		 if( !(input_port->IDR & input_pin)){
-			 low_pin_count++;
-		 }else{
-		//	 high_pin_count++;
-		 }
+	for(int i = 0 ; i < 500; i ++){
+	if( !(input_port->IDR & input_pin)){
+	low_pin_count++;
+	}else{
+	//	 high_pin_count++;
+	}
 
-		  delayMicroseconds(10);
-	  }
-			 if(low_pin_count == 0){
-				 return;           // all high while pin is pulled low, bootloader signal
-			 }
+	delayMicroseconds(10);
+	}
+	if(low_pin_count == 0){
+	return;           // all high while pin is pulled low, bootloader signal
+	}
 
-		 low_pin_count = 0;
+	low_pin_count = 0;
 
-		 LL_GPIO_SetPinPull(input_port, input_pin, LL_GPIO_PULL_NO);
-		 delayMicroseconds(500);
+	LL_GPIO_SetPinPull(input_port, input_pin, LL_GPIO_PULL_NO);
+	delayMicroseconds(500);
 
-		 for(int i = 0 ; i < 500; i ++){
-		 if( !(input_port->IDR & input_pin)){
-			 low_pin_count++;
-		 }
+	for(int i = 0 ; i < 500; i ++){
+	if( !(input_port->IDR & input_pin)){
+	low_pin_count++;
+	}
 
-		  delayMicroseconds(10);
-	  }
-		 if(low_pin_count == 0){
-			 return;            // when floated all
-		 }
+	delayMicroseconds(10);
+	}
+	if(low_pin_count == 0){
+	return;            // when floated all
+	}
 
-		 if(low_pin_count > 0){
-			 jump();
-		 }
-
-
-
+	if(low_pin_count > 0){
+	jump();
+	}
 }
 
 int main(void)
@@ -867,6 +681,7 @@ static void MX_GPIO_INPUT_INIT(void)
   LL_GPIO_Init(input_port, &GPIO_InitStruct);
 
 }
+
 void Error_Handler(void)
 {
 
