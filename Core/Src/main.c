@@ -121,7 +121,7 @@ pFunction JumpToApplication;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_GPIO_INPUT_INIT(void);
+static void MX_GPIO_INPUT_INIT(uint8_t pull);
 void processmessage(void);
 void serialwriteChar(char data);
 void sendString(uint8_t data[], int len);
@@ -188,7 +188,7 @@ char checkCrc(uint8_t * pBuff, uint16_t length) {
 void setReceive() {
     //LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_2, LL_GPIO_MODE_INPUT);
     //memset(rxBuffer, 0, sizeof(rxBuffer));
-    MX_GPIO_INPUT_INIT();
+    MX_GPIO_INPUT_INIT(LL_GPIO_PULL_UP);
     received = 0;
 }
 
@@ -639,10 +639,10 @@ static void MX_TIM2_Init(void) {
 }
 
 static void MX_GPIO_Init(void) {
-    MX_GPIO_INPUT_INIT();
+    MX_GPIO_INPUT_INIT(LL_GPIO_PULL_NO);
 }
 
-static void MX_GPIO_INPUT_INIT(void) {
+static void MX_GPIO_INPUT_INIT(uint8_t pull) {
     LL_GPIO_InitTypeDef GPIO_InitStruct = {
         0
     };
@@ -657,7 +657,7 @@ static void MX_GPIO_INPUT_INIT(void) {
     /**/
     GPIO_InitStruct.Pin = input_pin;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+    GPIO_InitStruct.Pull = pull;
     LL_GPIO_Init(input_port, & GPIO_InitStruct);
 }
 
