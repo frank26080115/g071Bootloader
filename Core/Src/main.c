@@ -60,31 +60,15 @@ char eeprom_req = 0;
 int received;
 uint8_t pin_code = PORT_LETTER << 4 | PIN_NUMBER;
 
-uint8_t __attribute__((section(".bootloader_info"))) bootloader_version = BOOTLOADER_VERSION;
+const uint8_t __attribute__((section(".bootloader_info"), used)) bootloader_version = BOOTLOADER_VERSION;
 
 #ifdef SIXTY_FOUR_KB_MEMORY
 uint8_t deviceInfo[9] = {
-    0x34,
-    0x37,
-    0x31,
-    0x64,
-    0x35,
-    0x06,
-    0x06,
-    0x01,
-    0x30
+    0x34, 0x37, 0x31, 0x64, 0x35, 0x06, 0x06, 0x02, 0x31
 }; // 64 k identifier 06 35
 #else
 uint8_t deviceInfo[9] = {
-    0x34,
-    0x37,
-    0x31,
-    0x64,
-    0x2B,
-    0x06,
-    0x06,
-    0x01,
-    0x30
+    0x34, 0x37, 0x31, 0x64, 0x2B, 0x06, 0x06, 0x02, 0x31
 }; // stm32 128k device info 06 2b
 #endif
 

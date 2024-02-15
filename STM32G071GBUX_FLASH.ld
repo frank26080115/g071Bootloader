@@ -37,7 +37,7 @@ _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 MEMORY
 {
   RAM           (xrw) : ORIGIN = 0x20000000,   LENGTH = 36K
-  FLASH         (rx)  : ORIGIN = 0x08000000,   LENGTH = 128K
+  FLASH         (rx)  : ORIGIN = 0x08000000,   LENGTH = 128K - 4
   FLASH_VERSION (rx)  : ORIGIN = 0x08000FFC,   LENGTH = 4
 }
 
@@ -124,7 +124,7 @@ SECTIONS
   .bootloader_version :
   {
     . = ALIGN(4);
- 	KEEP (*(.bootloader_info))
+    KEEP (*(.bootloader_info))
   } >FLASH_VERSION
 
   /* Used by the startup to initialize data */
