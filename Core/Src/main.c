@@ -7,8 +7,6 @@
 typedef void( * pFunction)(void);
 
 //#define SKIP_SIGNAL_CHECK // for slot car esc.
-#define USE_PB4
-#define BOOTLOADER_VERSION             8
 //#define ALLOW_FOUR_WAY_COMMANDS
 #define SIXTY_FOUR_KB_MEMORY
 
@@ -558,7 +556,7 @@ int main(void) {
     LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
     LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
 
-    FLASH -> ACR |= FLASH_ACR_PRFTEN; // prefetch buffer enable
+    FLASH -> ACR |= FLASH_ACR_PRFTBE; // prefetch buffer enable
 
     SystemClock_Config();
 

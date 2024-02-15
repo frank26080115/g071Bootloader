@@ -11,26 +11,26 @@
 
 extern char flash_error;
 
-#define APP_START (uint32_t)0x08001000
+#define APP_START    (uint32_t)0x08001000
 #define EEPROM_START (uint32_t)0x0801F800
 
 
-#define page_size 0x800                   // 2 kb for g071
-uint32_t FLASH_FKEY1 =0x45670123;
-uint32_t FLASH_FKEY2 =0xCDEF89AB;
+#define page_size      0x800                   // 2 kb for g071
+uint32_t FLASH_FKEY1 = 0x45670123;
+uint32_t FLASH_FKEY2 = 0xCDEF89AB;
 
 
 void save_flash_nolib(uint8_t *data, int length, uint32_t add){
-	uint32_t data_to_FLASH[length / 4];
-	memset(data_to_FLASH, 0, length / 4);
-	for(int i = 0; i < length / 4 ; i ++ ){
-		data_to_FLASH[i] =  data[i*4+3] << 24 |data[i*4+2] << 16|data[i*4+1] << 8| data[i*4];   // make 16 bit
+	uint16_t data_to_FLASH[length / 2];
+	memset(data_to_FLASH, 0, length / 2);
+	for(int i = 0; i < length / 2 ; i ++ ){
+		data_to_FLASH[i] =  data[i*2+1] << 8 | data[i*2];   // make 16 bit
 	}
-	volatile uint32_t data_length = length / 4;
+	volatile uint32_t data_length = length / 2;
 
 	// unlock flash
 
-	while ((FLASH->SR & FLASH_SR_BSY1) != 0) {
+	while ((FLASH->SR & FLASH_SR_BSY) != 0) {
 	/*  add time-out*/
 	}
 	if ((FLASH->CR & FLASH_CR_LOCK) != 0) {
@@ -38,80 +38,46 @@ void save_flash_nolib(uint8_t *data, int length, uint32_t add){
 	FLASH->KEYR = FLASH_FKEY2;
 	}
 
-	// erase page if address even divisable by 2048
-	 if(add % 2048 == 0){
-	 FLASH->CR &= ~FLASH_CR_PNB;
+	// erase page if address even divisable by 1024
+	 if((add % 2048) == 0){
+
 
 	FLASH->CR |= FLASH_CR_PER;
-	FLASH->CR |= (((add - 0x08000000)/2048)& 0x3F) << 3;
+	FLASH->AR = add;
 	FLASH->CR |= FLASH_CR_STRT;
-	while ((FLASH->SR & FLASH_SR_BSY1) != 0){
+	while ((FLASH->SR & FLASH_SR_BSY) != 0){
 	/*  add time-out */
 	}
-
+	if ((FLASH->SR & FLASH_SR_EOP) != 0){
+	FLASH->SR = FLASH_SR_EOP;
+	}
+	else{
+	/* error */
+	}
 	FLASH->CR &= ~FLASH_CR_PER;
 
 	 }
-	 FLASH->SR |= 1 << 7;
-
 
 	 volatile uint32_t write_cnt=0, index=0;
 	 while(index < data_length)
 			  {
 
 	    	FLASH->CR |= FLASH_CR_PG; /* (1) */
-	    	*(__IO uint32_t*)(add+write_cnt) = data_to_FLASH[index];
-	    	*(__IO uint32_t*)(add+write_cnt+4) = data_to_FLASH[index+1];
-	    	while ((FLASH->SR & FLASH_SR_BSY1) != 0){ /*  add time-out  */
+	    	*(__IO uint16_t*)(add+write_cnt) = data_to_FLASH[index];
+	    	while ((FLASH->SR & FLASH_SR_BSY) != 0){ /*  add time-out  */
 	    	}
 	   	 if ((FLASH->SR & FLASH_SR_EOP) != 0){
 	   	 FLASH->SR = FLASH_SR_EOP;
-
 	   	 }
 	   	 else{
-	   		 /*error*/
-	   		FLASH->SR = FLASH_SR_EOP;
+	   	 /*  error  */
 	   	 }
 	   	 FLASH->CR &= ~FLASH_CR_PG;
-				  write_cnt += 8;
-				  index +=2;
+				  write_cnt += 2;
+				  index++;
 		  }
 	 SET_BIT(FLASH->CR, FLASH_CR_LOCK);
 }
-
-void erase_flash(int page){
-
-
-
-//	while ((FLASH->SR & FLASH_SR_BSY1) != 0) {
-//	/*  add time-out*/
-//	}
-	if ((FLASH->CR & FLASH_CR_LOCK) != 0) {
-	FLASH->KEYR = FLASH_FKEY1;
-	FLASH->KEYR = FLASH_FKEY2;
-	}
-	FLASH->CR &= ~FLASH_CR_PNB;
-
-
-				while ((FLASH->SR & FLASH_SR_BSY1) != 0) {
-				/*  add time-out*/
-				}
-
-
-		FLASH->CR |= (page & 0x3F) << 3;
-		FLASH->CR |= FLASH_CR_STRT;
-		FLASH->CR |= FLASH_CR_PER;
-		while ((FLASH->SR & FLASH_SR_BSY1) != 0){
-		/*  add time-out */
-		}
-	//
-
-
-FLASH->CR &= ~FLASH_CR_PER;
-	 SET_BIT(FLASH->CR, FLASH_CR_LOCK);
-	 FLASH->SR |= 1 << 7;
-}
-
 
 void read_flash_bin(uint8_t*  data , uint32_t add , int out_buff_len){
 	//volatile uint32_t read_data;
